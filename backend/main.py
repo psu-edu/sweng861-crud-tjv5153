@@ -19,6 +19,7 @@ templates = Jinja2Templates(directory="../frontend/templates")
 # Fetch OpenID Connect metadata
 metadata = httpx.get(f"{OKTA_URL}/.well-known/openid-configuration").json()
 authorization_url = metadata["authorization_endpoint"]
+token_url = metadata["token_endpoint"]
 
 @app.get("/health")
 def read_health():
@@ -29,7 +30,30 @@ def read_hello():
     return {"message": "Hello, World!"}
 
 @app.get("/authorization-code/callback")
-def authCallback(code:str):
+async def authCallback(code:str):
+    token_response = httpx.post(token_url,
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": f"{BACKEND_URL}/authorization-code/callback",
+                "client_id": OKTA_CLIENT_ID,
+                "client_secret": OKTA_CLIENT_SECRET,
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"})
+
+    token_data = token_response.json()
+
+    access_token = token_data.get("access_token")
+
+    userinfo_response = httpx.get(f"{OKTA_URL}/v1/userinfo",
+                                  headers={"Authorization": f"Bearer {access_token}"})
+
+    if userinfo_response.status_code != 200:
+        print("Failed to fetch user info")
+    else:
+        userinfo = userinfo_response.json()
+        print(userinfo)
+
     return {"status": "authenticated"}
 
 @app.get("/signin")
