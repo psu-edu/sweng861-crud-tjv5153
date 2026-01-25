@@ -78,6 +78,7 @@ def exchangeCodeForTokens(code: str):
         access_token = token_data.get("access_token")
         id_token = token_data.get("id_token")
 
+
         return access_token, id_token
 
 async def validateTokens(token: str, token_type: str):
@@ -95,16 +96,28 @@ async def validateTokens(token: str, token_type: str):
         return False
     
 def extractUserInfo(token: str):
-    userinfo_response = httpx.get(f"{OKTA_URL}/v1/userinfo",
-                                headers={"Authorization": f"Bearer {token}"})
+    # userinfo_response = httpx.get(f"{OKTA_URL}/v1/userinfo",
+    #                             headers={"Authorization": f"Bearer {token}"})
+    
+    decoded_token = jwt.decode(token, options={"verify_signature": False})
+    userinfo = {}
+    #print(f"Decoded Token: {decoded_token}")
+    userinfo['name'] = f'{decoded_token.get('name')} {decoded_token.get('lastName')}'
+    userinfo['email'] = decoded_token.get('email')  
+    userinfo['auth_time'] = decoded_token.get('auth_time')
+    userinfo['iat'] = decoded_token.get('iat')
+    userinfo['uid'] = decoded_token.get('uid')
+    print(userinfo)
+    #User(id=userinfo['uid'], username=userinfo['name'], email=userinfo['email'], accessTime=userinfo['auth_time'])
 
-    if userinfo_response.status_code != 200:
-        print("Failed to fetch user info")
-    else:
-        userinfo = userinfo_response.json()
-        print(f"Userinfo: {userinfo}")
-        #User(id=userinfo['sub'], timestamp=time.time())
-        return userinfo
+    # if userinfo_response.status_code != 200:
+    #     print("Failed to fetch user info")
+    # else:
+    #     userinfo = userinfo_response.json()
+    #     print(f"Userinfo: {userinfo}")
+    #     #User(id=userinfo['sub'], timestamp=time.time())
+    
+    return userinfo
 
 @app.get("/authorization-code/callback/")
 async def authCallback(response: HTMLResponse, code:str, state:str):
@@ -145,12 +158,12 @@ def home(request: Request):
 
 
 class User():
-    def __init__(self, id, username=None, email=None, timestamp=None):
+    def __init__(self, id, username=None, email=None, accessTime=None):
         self.id = id
         self.username = username
         self.email = email
         self.createdTime = None
-        self.lastAccessTime = None
+        self.lastAccessTime = accessTime
 
         cursor = conn.cursor()
         cursor.execute("IF NOT EXISTS (SELECT 1 FROM users WHERE id = ?) INSERT INTO users (id, username, email, timestamp) VALUES (?, ?, ?, ?)", (self.id, self.id, self.username, self.email, self.timestamp))
