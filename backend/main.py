@@ -116,7 +116,7 @@ def extractUserInfo(token: str):
     #     userinfo = userinfo_response.json()
     #     print(f"Userinfo: {userinfo}")
     #     #User(id=userinfo['sub'], timestamp=time.time())
-    
+
     return userinfo
 
 @app.get("/authorization-code/callback/")
@@ -162,9 +162,12 @@ class User():
         self.id = id
         self.username = username
         self.email = email
-        self.createdTime = None
         self.lastAccessTime = accessTime
 
         cursor = conn.cursor()
-        cursor.execute("IF NOT EXISTS (SELECT 1 FROM users WHERE id = ?) INSERT INTO users (id, username, email, timestamp) VALUES (?, ?, ?, ?)", (self.id, self.id, self.username, self.email, self.timestamp))
+        cursor.execute("IF NOT EXISTS (SELECT 1 FROM users WHERE id = ?) INSERT INTO users (id, username, email, createdTime, lastAccessTime) VALUES (?, ?, ?, ?, ?)", (self.id, self.id, self.username, self.email, self.lastAccessTime, self.lastAccessTime))
+        conn.commit()
+
+        cursor = conn.cursor()
+        cursor.execute("IF EXISTS (SELECT 1 FROM users WHERE id = ?) UPDATE users SET lastAccessTime = ? WHERE id = ?", (self.id, self.lastAccessTime, self.id))
         conn.commit()
