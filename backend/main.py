@@ -1,12 +1,15 @@
 # Entry point for SWENG 861 CRUD project
+from datetime import datetime
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse, HTMLResponse
 import httpx
+import jwt
 from okta_jwt.jwt import validate_token
 from okta_jwt_verifier import BaseJWTVerifier
 import os
+import sqlite3
 
 
 load_dotenv()
@@ -14,6 +17,22 @@ OKTA_URL = os.getenv("OKTA_URL")
 OKTA_CLIENT_ID = os.getenv("OKTA_CLIENT_ID")
 OKTA_CLIENT_SECRET = os.getenv("OKTA_CLIENT_SECRET")
 BACKEND_URL = os.getenv("BACKEND_URL")
+DB_PATH = os.getenv("DB")
+
+# try:
+#     conn = sqlite3.connect(DB_PATH)
+#     print("Database connection successful")
+#     cursor = conn.cursor()
+#     cursor.execute('''
+#     CREATE TABLE IF NOT EXISTS users (
+#         id TEXT PRIMARY KEY,
+#         username TEXT,
+#         email TEXT,
+#         timestamp INTEGER
+#     )''')
+#     conn.commit()
+# except sqlite3.Error as e:
+#     print(f"Database connection failed: {e}")
 
 app = FastAPI()
 
@@ -50,24 +69,16 @@ def exchangeCodeForTokens(code: str):
         },
         headers={"Content-Type": "application/x-www-form-urlencoded"})
 
-    token_data = token_response.json()
+    if token_response.status_code != 200:
+        print("Failed to exchange code for tokens")
+        return None, None
+    else:
+        token_data = token_response.json()
 
-    access_token = token_data.get("access_token")
-    id_token = token_data.get("id_token")
+        access_token = token_data.get("access_token")
+        id_token = token_data.get("id_token")
 
-    return access_token, id_token
-
-
-# def validateAccessToken(token: str):
-#     valid = validate_token(
-#         token,
-#         OKTA_URL,
-#         "api://default",
-#         OKTA_CLIENT_ID
-#         )
- 
-#     #print("Validation result:", valid)
-#     return valid is not None
+        return access_token, id_token
 
 async def validateTokens(token: str, token_type: str):
     jwt_verifier = BaseJWTVerifier(OKTA_URL, OKTA_CLIENT_ID, audience="api://default")
@@ -83,7 +94,7 @@ async def validateTokens(token: str, token_type: str):
         print("Token validation failed:", str(e))
         return False
     
-def getUserInfo(token: str):
+def extractUserInfo(token: str):
     userinfo_response = httpx.get(f"{OKTA_URL}/v1/userinfo",
                                 headers={"Authorization": f"Bearer {token}"})
 
@@ -91,11 +102,12 @@ def getUserInfo(token: str):
         print("Failed to fetch user info")
     else:
         userinfo = userinfo_response.json()
-        print(userinfo["sub"])
-
+        print(f"Userinfo: {userinfo}")
+        #User(id=userinfo['sub'], timestamp=time.time())
+        return userinfo
 
 @app.get("/authorization-code/callback/")
-async def authCallback(code:str, state:str):
+async def authCallback(response: HTMLResponse, code:str, state:str):
 
     if(verifyStatePostAuth(state)):
         #print("State verified")
@@ -103,7 +115,7 @@ async def authCallback(code:str, state:str):
   
         if(await validateTokens(access_token, "access_token") and await validateTokens(id_token, "id_token")):
             #print("Tokens validated")
-            getUserInfo(access_token)
+            user_info = extractUserInfo(access_token)
         else:
             print("Token validation failed")
             return {"status": "error", "message": "Token validation failed"}
@@ -111,7 +123,14 @@ async def authCallback(code:str, state:str):
         print("State verification failed")
         return {"status": "error", "message": "State verification failed"}
 
-
+    response.set_cookie(
+            key="session_id",
+            value=access_token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=3600
+        )
     return {"status": "authenticated"}
 
 
@@ -120,7 +139,19 @@ async def signin():
     redirect_uri = f"{authorization_url}?client_id={OKTA_CLIENT_ID}&response_type=code&scope=openid&redirect_uri={BACKEND_URL}/authorization-code/callback&state=login"
     return RedirectResponse(url=redirect_uri)
 
-
 @app.get("/")
 def home(request: Request):
     return templates.TemplateResponse(request, "index.html")
+
+
+class User():
+    def __init__(self, id, username=None, email=None, timestamp=None):
+        self.id = id
+        self.username = username
+        self.email = email
+        self.createdTime = None
+        self.lastAccessTime = None
+
+        cursor = conn.cursor()
+        cursor.execute("IF NOT EXISTS (SELECT 1 FROM users WHERE id = ?) INSERT INTO users (id, username, email, timestamp) VALUES (?, ?, ?, ?)", (self.id, self.id, self.username, self.email, self.timestamp))
+        conn.commit()
