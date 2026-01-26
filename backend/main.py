@@ -142,7 +142,7 @@ def extractUserInfo(token: str):
     userinfo['iat'] = decoded_token.get('iat')
     userinfo['uid'] = decoded_token.get('uid')
     print(userinfo)
-    #User(id=userinfo['uid'], username=userinfo['name'], email=userinfo['email'], accessTime=userinfo['auth_time'])
+    
 
     # if userinfo_response.status_code != 200:
     #     print("Failed to fetch user info")
@@ -152,6 +152,9 @@ def extractUserInfo(token: str):
     #     #User(id=userinfo['sub'], timestamp=time.time())
 
     return userinfo
+
+def addUsertoDB(userinfo):
+    User(id=userinfo['uid'], username=userinfo['name'], email=userinfo['email'], accessTime=userinfo['auth_time'])
 
 @app.get("/authorization-code/callback/")
 async def authCallback(response: HTMLResponse, code:str, state:str):
@@ -163,6 +166,7 @@ async def authCallback(response: HTMLResponse, code:str, state:str):
         if(await validateTokens(access_token, "access_token") and await validateTokens(id_token, "id_token")):
             #print("Tokens validated")
             user_info = extractUserInfo(access_token)
+            #addUsertoDB(user_info)
         else:
             print("Token validation failed")
             return {"status": "error", "message": "Token validation failed"}
