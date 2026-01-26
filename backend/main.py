@@ -1,9 +1,10 @@
 # Entry point for SWENG 861 CRUD project
 from datetime import datetime
+from urllib import request
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 import httpx
 import jwt
 from okta_jwt.jwt import validate_token
@@ -50,9 +51,42 @@ def read_health():
 
 
 @app.get("/api/hello")
-def read_hello():
-    return {"message": "Hello, World!"}
+async def protected_hello(request: Request):
+    return {"message": f"Hello, {request.state.user}. Email: {request.state.email}. This is the protected hello api endpoint."}
 
+
+@app.middleware("http")
+async def authentication_middleware(request: Request, call_next):
+    if request.url.path == "/" or request.url.path == "/signin" or request.url.path.startswith("/authorization-code/callback") \
+    or request.url.path == "/health":
+        response = await call_next(request)
+        return response
+
+    session_id = request.cookies.get("session_id")
+    #print(f"Session ID: {session_id}")
+    if not session_id:
+        return JSONResponse(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            content={"Unauthorized": "Valid access token is required"}
+        )
+    else:
+        is_valid = await validateTokens(session_id, "access_token")
+        if not is_valid:
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"Unauthorized": "Invalid session Id"}
+            )
+        else:
+            print("Session ID is valid")
+            user_info = extractUserInfo(session_id)
+            print(f"User Info from Middleware: {user_info}")
+
+            #Attach user info to the request object for downstream use
+            request.state.user = user_info['name']
+            request.state.email = user_info['email']
+
+            response = await call_next(request)
+            return response
 
 def verifyStatePostAuth(state: str):
     return state == "login"
@@ -144,6 +178,7 @@ async def authCallback(response: HTMLResponse, code:str, state:str):
             samesite="lax",
             max_age=3600
         )
+
     return {"status": "authenticated"}
 
 
