@@ -2,7 +2,7 @@
 from datetime import datetime
 from urllib import request
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, status, Depends
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 import httpx
@@ -51,8 +51,17 @@ def read_health():
     return {"status": "ok"}
 
 
+async def verify(request: Request):
+    session_id = request.cookies.get("session_id")
+    if not session_id:
+        return False
+    else:
+        is_valid = await validateTokens(session_id, "access_token")
+        print("Verified using depends")
+        return is_valid
+
 @app.get("/api/hello")
-async def protected_hello(request: Request):
+async def protected_hello(request: Request, verified: bool = Depends(verify)):
     return {"message": f"Hello, {request.state.user}. Email: {request.state.email}. This is the protected hello api endpoint."}
 
 
