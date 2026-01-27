@@ -20,20 +20,21 @@ OKTA_CLIENT_SECRET = os.getenv("OKTA_CLIENT_SECRET")
 BACKEND_URL = os.getenv("BACKEND_URL")
 DB_PATH = os.getenv("DB")
 
-# try:
-#     conn = sqlite3.connect(DB_PATH)
-#     print("Database connection successful")
-#     cursor = conn.cursor()
-#     cursor.execute('''
-#     CREATE TABLE IF NOT EXISTS users (
-#         id TEXT PRIMARY KEY,
-#         username TEXT,
-#         email TEXT,
-#         timestamp INTEGER
-#     )''')
-#     conn.commit()
-# except sqlite3.Error as e:
-#     print(f"Database connection failed: {e}")
+try:
+    conn = sqlite3.connect(DB_PATH)
+    print("Database connection successful")
+    cursor = conn.cursor()
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT,
+        email TEXT,
+        lastAccessTime INTEGER,
+        createdTime INTEGER
+    )''')
+    conn.commit()
+except sqlite3.Error as e:
+    print(f"Database connection failed: {e}")
 
 app = FastAPI()
 
@@ -130,8 +131,6 @@ async def validateTokens(token: str, token_type: str):
         return False
     
 def extractUserInfo(token: str):
-    # userinfo_response = httpx.get(f"{OKTA_URL}/v1/userinfo",
-    #                             headers={"Authorization": f"Bearer {token}"})
     
     decoded_token = jwt.decode(token, options={"verify_signature": False})
     userinfo = {}
@@ -142,14 +141,6 @@ def extractUserInfo(token: str):
     userinfo['iat'] = decoded_token.get('iat')
     userinfo['uid'] = decoded_token.get('uid')
     print(userinfo)
-    
-
-    # if userinfo_response.status_code != 200:
-    #     print("Failed to fetch user info")
-    # else:
-    #     userinfo = userinfo_response.json()
-    #     print(f"Userinfo: {userinfo}")
-    #     #User(id=userinfo['sub'], timestamp=time.time())
 
     return userinfo
 
@@ -166,7 +157,7 @@ async def authCallback(response: HTMLResponse, code:str, state:str):
         if(await validateTokens(access_token, "access_token") and await validateTokens(id_token, "id_token")):
             #print("Tokens validated")
             user_info = extractUserInfo(access_token)
-            #addUsertoDB(user_info)
+            addUsertoDB(user_info)
         else:
             print("Token validation failed")
             return {"status": "error", "message": "Token validation failed"}
@@ -197,16 +188,19 @@ def home(request: Request):
 
 
 class User():
-    def __init__(self, id, username=None, email=None, accessTime=None):
+    def __init__(self, id, username, email, accessTime):
         self.id = id
         self.username = username
         self.email = email
         self.lastAccessTime = accessTime
 
         cursor = conn.cursor()
-        cursor.execute("IF NOT EXISTS (SELECT 1 FROM users WHERE id = ?) INSERT INTO users (id, username, email, createdTime, lastAccessTime) VALUES (?, ?, ?, ?, ?)", (self.id, self.id, self.username, self.email, self.lastAccessTime, self.lastAccessTime))
+        #If user does not exist insert new record else ignore
+        cursor.execute("INSERT OR IGNORE INTO users (id, username, email, lastAccessTime, createdTime) VALUES (?, ?, ?, ?, ?)", 
+                       (self.id, self.username, self.email, self.lastAccessTime, self.lastAccessTime))
         conn.commit()
 
         cursor = conn.cursor()
-        cursor.execute("IF EXISTS (SELECT 1 FROM users WHERE id = ?) UPDATE users SET lastAccessTime = ? WHERE id = ?", (self.id, self.lastAccessTime, self.id))
+        #update last access time on each login
+        cursor.execute("UPDATE users SET lastAccessTime = ? WHERE id = ?", (self.lastAccessTime, self.id))
         conn.commit()
