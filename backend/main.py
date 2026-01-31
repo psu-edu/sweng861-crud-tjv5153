@@ -11,6 +11,7 @@ from okta_jwt.jwt import validate_token
 from okta_jwt_verifier import BaseJWTVerifier
 import os
 import sqlite3
+import thirdPartyApi
 
 
 load_dotenv()
@@ -22,7 +23,7 @@ DB_PATH = os.getenv("DB")
 
 try:
     conn = sqlite3.connect(DB_PATH)
-    print("Database connection successful")
+    print("Users Database connection successful")
     cursor = conn.cursor()
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS users (
@@ -34,7 +35,7 @@ try:
     )''')
     conn.commit()
 except sqlite3.Error as e:
-    print(f"Database connection failed: {e}")
+    print(f"Users Database connection failed: {e}")
 
 app = FastAPI()
 
@@ -68,13 +69,15 @@ async def protected_hello(request: Request, verified: bool = Depends(verify)):
 @app.middleware("http")
 async def authentication_middleware(request: Request, call_next):
     if request.url.path == "/" or request.url.path == "/signin" or request.url.path.startswith("/authorization-code/callback") \
-    or request.url.path == "/health":
+        or request.url.path == "/health" or "/catFacts" in request.url.path or request.url.path == "/favicon.ico":
         response = await call_next(request)
+        #print("No authentication required for this path")
         return response
 
     session_id = request.cookies.get("session_id")
     #print(f"Session ID: {session_id}")
     if not session_id:
+        print("unauthorized1")
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
             content={"Unauthorized": "Valid access token is required"}
@@ -82,6 +85,7 @@ async def authentication_middleware(request: Request, call_next):
     else:
         is_valid = await validateTokens(session_id, "access_token")
         if not is_valid:
+            print("unauthorized2")
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 content={"Unauthorized": "Invalid session Id"}
@@ -190,6 +194,33 @@ async def authCallback(response: HTMLResponse, code:str, state:str):
 async def signin():
     redirect_uri = f"{authorization_url}?client_id={OKTA_CLIENT_ID}&response_type=code&scope=openid&redirect_uri={BACKEND_URL}/authorization-code/callback&state=login"
     return RedirectResponse(url=redirect_uri)
+
+@app.get("/catFacts")
+async def cat_facts():
+    #this just gets one cat fact from the API and stores it in the database
+    stat = thirdPartyApi.fetch_cat_facts_from_api(1)
+    if stat:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"status": "Cat Facts API data stored successfully"})
+    else:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"status": "Failed to store Cat Facts API data"})
+
+@app.get("/catFacts/{numFacts}")
+async def cat_facts(numFacts: int):
+    #this just gets one cat fact from the API and stores it in the database
+    stat = thirdPartyApi.fetch_cat_facts_from_api(numFacts)
+    if stat:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"status": f"Cat Facts API data stored successfully for {numFacts} facts"})
+    else:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"status": "Failed to store Cat Facts API data"})
+
 
 @app.get("/")
 def home(request: Request):
