@@ -12,6 +12,7 @@ from okta_jwt_verifier import BaseJWTVerifier
 import os
 import sqlite3
 import thirdPartyApi
+import restapi_helpers
 
 
 load_dotenv()
@@ -47,12 +48,33 @@ authorization_url = metadata["authorization_endpoint"]
 token_url = metadata["token_endpoint"]
 
 
+#create (POST)
+@app.post("/cars/", response_model=restapi_helpers.Car)
+async def add_car(car: restapi_helpers.Car):
+    pass
+
+#read (GET)
+@app.get("/cars/{car_id}", response_model=restapi_helpers.Car)
+async def get_car(car_id: str):
+    pass
+
+#update (PUT)
+@app.put("/cars/{car_id}", response_model=restapi_helpers.Car)
+async def update_car(car_id: str, car: restapi_helpers.Car):
+    pass
+
+#delete
+@app.delete("/cars/{car_id}")
+async def sold_car(car_id: str):
+    pass
+
+
 @app.get("/health")
-def read_health():
+async def read_health():
     return {"status": "ok"}
 
 
-async def verify(request: Request):
+async def isAuthenticated(request: Request):
     session_id = request.cookies.get("session_id")
     if not session_id:
         return False
@@ -62,14 +84,13 @@ async def verify(request: Request):
         return is_valid
 
 @app.get("/api/hello")
-async def protected_hello(request: Request, verified: bool = Depends(verify)):
+async def protected_hello(request: Request, verified: bool = Depends(isAuthenticated)):
     return {"message": f"Hello, {request.state.user}. Email: {request.state.email}. This is the protected hello api endpoint."}
 
 
 @app.middleware("http")
 async def authentication_middleware(request: Request, call_next):
-    if request.url.path == "/" or request.url.path == "/signin" or request.url.path.startswith("/authorization-code/callback") \
-        or request.url.path == "/health" or "/catFacts" in request.url.path or request.url.path == "/favicon.ico":
+    if request.url.path != "/api/hello":
         response = await call_next(request)
         #print("No authentication required for this path")
         return response
@@ -220,7 +241,6 @@ async def cat_facts(numFacts: int):
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"status": "Failed to store Cat Facts API data"})
-
 
 @app.get("/")
 def home(request: Request):
