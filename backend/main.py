@@ -242,7 +242,7 @@ async def add_car(request: Request, car: restapi_helpers.Car, verified: bool = D
         return JSONResponse(status_code=200, content={"message": "Car added successfully"})
 
 #read (GET)
-@app.get("/cars/{vin}", response_model=restapi_helpers.Car)
+@app.get("/cars/{vin}")
 @limiter.limit("50/minute")
 async def get_car(request: Request, vin: str, verified: bool = Depends(isAuthenticated)):
     if not verified:
@@ -293,11 +293,12 @@ def home(request: Request):
 
 
 class User():
-    def __init__(self, id, username, email, accessTime):
+    def __init__(self, id, username, email, accessTime, role='user'):
         self.id = id
         self.username = username
         self.email = email
         self.lastAccessTime = accessTime
+        self.role = role
 
         cursor = conn.cursor()
         #If user does not exist insert new record else ignore
