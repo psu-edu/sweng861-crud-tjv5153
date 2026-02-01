@@ -5,7 +5,7 @@ CRUD App
 **Tech Stack:**  
 - Backend: Python FastAPI  
 - Frontend: TBD
-- Database: TBD  
+- Database: SQL using SQLite 
 
 # Authentication Strategy
 **Option C: Enterprise SSO**  
@@ -25,5 +25,8 @@ The secured endpoint is /api/hello. RequireAuth is a feature in JavaScript that 
  - Security misconfiguration was avoided by not returning stack traces in client responses. Specific JSON responses were chosen for all cases including auth failure. Errors are logged on the backend only.  
 
  **Bonus**  
- Rate limited was implemented in the Okta admin console. The requests / minute were limited for authentication attempts.
+ Rate limited was implemented in the Okta admin console. The requests / minute were limited for authentication attempts.  
+
+ **Running Backend**  
+ uvicorn main:app --reload --ssl-certfile ../cert.pem --ssl-keyfile ../key.pem
 

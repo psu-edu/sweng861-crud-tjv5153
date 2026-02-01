@@ -36,6 +36,7 @@ try:
         email TEXT,
         lastAccessTime INTEGER,
         createdTime INTEGER
+        role TEXT DEFAULT 'user'
     )''')
     conn.commit()
 except sqlite3.Error as e:
