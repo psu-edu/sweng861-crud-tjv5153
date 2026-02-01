@@ -48,53 +48,6 @@ authorization_url = metadata["authorization_endpoint"]
 token_url = metadata["token_endpoint"]
 
 
-#create (POST)
-@app.post("/cars/", response_model=restapi_helpers.Car)
-async def add_car(car: restapi_helpers.Car):
-    if not restapi_helpers.add_car_to_db(car):
-        return JSONResponse(status_code=500, content={"error": "Failed to add car"})
-    else:
-        return JSONResponse(status_code=200, content={"message": "Car added successfully"})
-
-#read (GET)
-@app.get("/cars/{vin}", response_model=restapi_helpers.Car)
-async def get_car(vin: str):
-    car = restapi_helpers.get_car_from_db(vin)
-    if car:
-        return car
-    else:
-        return JSONResponse(status_code=404, content={"error": "Car not found"})
-
-#update price only (PUT)
-@app.put("/cars/{vin}/{price}")
-async def update_car_price(vin: str, price: float):
-    if not restapi_helpers.update_price_in_db(vin, price):
-        return JSONResponse(status_code=404, content={"error": "Car not found"})
-    else:
-        return JSONResponse(status_code=200, content={"message": "Car price updated successfully"})
-
-#update (PUT)
-@app.put("/cars/{vin}", response_model=restapi_helpers.Car)
-async def update_car(vin: str, car: restapi_helpers.Car):
-    if not restapi_helpers.update_car_in_db(vin, car):
-        return JSONResponse(status_code=404, content={"error": "Car not found"})
-    else:
-        return JSONResponse(status_code=200, content={"message": "Car updated successfully"})
-    
-#delete
-@app.delete("/cars/{vin}")
-async def sold_car(vin: str):
-    if not restapi_helpers.delete_car_from_db(vin):
-        return JSONResponse(status_code=404, content={"error": "Car not found"})
-    else:
-        return JSONResponse(status_code=200, content={"message": "Car sold successfully"})
-
-
-@app.get("/health")
-async def read_health():
-    return {"status": "ok"}
-
-
 async def isAuthenticated(request: Request):
     session_id = request.cookies.get("session_id")
     if not session_id:
@@ -104,14 +57,9 @@ async def isAuthenticated(request: Request):
         print("Verified using depends")
         return is_valid
 
-@app.get("/api/hello")
-async def protected_hello(request: Request, verified: bool = Depends(isAuthenticated)):
-    return {"message": f"Hello, {request.state.user}. Email: {request.state.email}. This is the protected hello api endpoint."}
-
-
 @app.middleware("http")
 async def authentication_middleware(request: Request, call_next):
-    if request.url.path != "/api/hello":
+    if request.url.path != "/api/hello" or request.url.path != "/cars":
         response = await call_next(request)
         #print("No authentication required for this path")
         return response
@@ -231,6 +179,13 @@ async def authCallback(response: HTMLResponse, code:str, state:str):
 
     return {"status": "authenticated"}
 
+@app.get("/health")
+async def read_health():
+    return {"status": "ok"}
+    
+@app.get("/api/hello")
+async def protected_hello(request: Request, verified: bool = Depends(isAuthenticated)):
+    return {"message": f"Hello, {request.state.user}. Email: {request.state.email}. This is the protected hello api endpoint."}
 
 @app.get("/signin")
 async def signin():
@@ -267,6 +222,55 @@ async def cat_facts(numFacts: int):
 async def get_favicon():
     return FileResponse("../frontend/templates/favicon.ico")
 
+#create (POST)
+@app.post("/cars/", response_model=restapi_helpers.Car)
+async def add_car(car: restapi_helpers.Car, verified: bool = Depends(isAuthenticated)):
+    if not verified:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+    elif not restapi_helpers.add_car_to_db(car):
+        return JSONResponse(status_code=500, content={"error": "Failed to add car"})
+    else:
+        return JSONResponse(status_code=200, content={"message": "Car added successfully"})
+
+#read (GET)
+@app.get("/cars/{vin}", response_model=restapi_helpers.Car)
+async def get_car(vin: str):
+    car = restapi_helpers.get_car_from_db(vin)
+    if car:
+        return car
+    else:
+        return JSONResponse(status_code=404, content={"error": "Car not found"})
+
+#update price only (PUT)
+@app.put("/cars/{vin}/{price}")
+async def update_car_price(vin: str, price: float, verified: bool = Depends(isAuthenticated)):
+    if not verified:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+    elif not restapi_helpers.update_price_in_db(vin, price):
+        return JSONResponse(status_code=404, content={"error": "Car not found"})
+    else:
+        return JSONResponse(status_code=200, content={"message": "Car price updated successfully"})
+
+#update (PUT)
+@app.put("/cars/{vin}", response_model=restapi_helpers.Car)
+async def update_car(vin: str, car: restapi_helpers.Car, verified: bool = Depends(isAuthenticated)):
+    if not verified:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+    elif not restapi_helpers.update_car_in_db(vin, car):
+        return JSONResponse(status_code=404, content={"error": "Car not found"})
+    else:
+        return JSONResponse(status_code=200, content={"message": "Car updated successfully"})
+    
+#delete
+@app.delete("/cars/{vin}")
+async def sold_car(vin: str, verified: bool = Depends(isAuthenticated)):
+    if not verified:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+    elif not restapi_helpers.delete_car_from_db(vin):
+        return JSONResponse(status_code=404, content={"error": "Car not found"})
+    else:
+        return JSONResponse(status_code=200, content={"message": "Car sold successfully"})
+    
 @app.get("/")
 def home(request: Request):
     return templates.TemplateResponse(request, "index.html")
