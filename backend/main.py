@@ -302,8 +302,8 @@ class User():
 
         cursor = conn.cursor()
         #If user does not exist insert new record else ignore
-        cursor.execute("INSERT OR IGNORE INTO users (id, username, email, lastAccessTime, createdTime) VALUES (?, ?, ?, ?, ?)", 
-                       (self.id, self.username, self.email, self.lastAccessTime, self.lastAccessTime))
+        cursor.execute("INSERT OR IGNORE INTO users (id, username, email, lastAccessTime, createdTime, role) VALUES (?, ?, ?, ?, ?, ?)", 
+                       (self.id, self.username, self.email, self.lastAccessTime, self.lastAccessTime, self.role))
         conn.commit()
 
         cursor = conn.cursor()
