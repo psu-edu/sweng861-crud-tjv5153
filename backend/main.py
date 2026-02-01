@@ -4,13 +4,18 @@ from urllib import request
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, status, Depends
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse, JSONResponse
 import httpx
 import jwt
 from okta_jwt.jwt import validate_token
 from okta_jwt_verifier import BaseJWTVerifier
 import os
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 import sqlite3
+import thirdPartyApi
+import restapi_helpers
 
 
 load_dotenv()
@@ -22,7 +27,7 @@ DB_PATH = os.getenv("DB")
 
 try:
     conn = sqlite3.connect(DB_PATH)
-    print("Database connection successful")
+    print("Users Database connection successful")
     cursor = conn.cursor()
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS users (
@@ -31,12 +36,17 @@ try:
         email TEXT,
         lastAccessTime INTEGER,
         createdTime INTEGER
+        role TEXT DEFAULT 'user'
     )''')
     conn.commit()
 except sqlite3.Error as e:
-    print(f"Database connection failed: {e}")
+    print(f"Users Database connection failed: {e}")
+
+limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 templates = Jinja2Templates(directory="../frontend/templates")
 
@@ -46,12 +56,7 @@ authorization_url = metadata["authorization_endpoint"]
 token_url = metadata["token_endpoint"]
 
 
-@app.get("/health")
-def read_health():
-    return {"status": "ok"}
-
-
-async def verify(request: Request):
+async def isAuthenticated(request: Request):
     session_id = request.cookies.get("session_id")
     if not session_id:
         return False
@@ -60,21 +65,17 @@ async def verify(request: Request):
         print("Verified using depends")
         return is_valid
 
-@app.get("/api/hello")
-async def protected_hello(request: Request, verified: bool = Depends(verify)):
-    return {"message": f"Hello, {request.state.user}. Email: {request.state.email}. This is the protected hello api endpoint."}
-
-
 @app.middleware("http")
 async def authentication_middleware(request: Request, call_next):
-    if request.url.path == "/" or request.url.path == "/signin" or request.url.path.startswith("/authorization-code/callback") \
-    or request.url.path == "/health":
+    if request.url.path != "/api/hello" or request.url.path != "/cars":
         response = await call_next(request)
+        #print("No authentication required for this path")
         return response
 
     session_id = request.cookies.get("session_id")
     #print(f"Session ID: {session_id}")
     if not session_id:
+        print("unauthorized1")
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
             content={"Unauthorized": "Valid access token is required"}
@@ -82,6 +83,7 @@ async def authentication_middleware(request: Request, call_next):
     else:
         is_valid = await validateTokens(session_id, "access_token")
         if not is_valid:
+            print("unauthorized2")
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 content={"Unauthorized": "Invalid session Id"}
@@ -185,12 +187,106 @@ async def authCallback(response: HTMLResponse, code:str, state:str):
 
     return {"status": "authenticated"}
 
+@app.get("/health")
+async def read_health():
+    return {"status": "ok"}
+
+@app.get("/api/hello")
+async def protected_hello(request: Request, verified: bool = Depends(isAuthenticated)):
+    return {"message": f"Hello, {request.state.user}. Email: {request.state.email}. This is the protected hello api endpoint."}
 
 @app.get("/signin")
 async def signin():
     redirect_uri = f"{authorization_url}?client_id={OKTA_CLIENT_ID}&response_type=code&scope=openid&redirect_uri={BACKEND_URL}/authorization-code/callback&state=login"
     return RedirectResponse(url=redirect_uri)
 
+@app.get("/catFacts")
+async def cat_facts():
+    #this just gets one cat fact from the API and stores it in the database
+    stat = thirdPartyApi.fetch_cat_facts_from_api(1)
+    if stat:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"status": "Cat Facts API data stored successfully"})
+    else:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"status": "Failed to store Cat Facts API data"})
+
+@app.get("/catFacts/{numFacts}")
+async def cat_facts(numFacts: int):
+    #this just gets one cat fact from the API and stores it in the database
+    stat = thirdPartyApi.fetch_cat_facts_from_api(numFacts)
+    if stat:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"status": f"Cat Facts API data stored successfully for {numFacts} facts"})
+    else:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"status": "Failed to store Cat Facts API data"})
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def get_favicon():
+    return FileResponse("../frontend/templates/favicon.ico")
+
+#create (POST)
+@app.post("/cars/", response_model=restapi_helpers.Car)
+@limiter.limit("50/minute")
+async def add_car(request: Request, car: restapi_helpers.Car, verified: bool = Depends(isAuthenticated)):
+    if not verified:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+    elif not restapi_helpers.add_car_to_db(car):
+        return JSONResponse(status_code=500, content={"error": "Failed to add car"})
+    else:
+        return JSONResponse(status_code=200, content={"message": "Car added successfully"})
+
+#read (GET)
+@app.get("/cars/{vin}", response_model=restapi_helpers.Car)
+@limiter.limit("50/minute")
+async def get_car(request: Request, vin: str, verified: bool = Depends(isAuthenticated)):
+    if not verified:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+    else:
+        car = restapi_helpers.get_car_from_db(vin)
+        if car:
+            return car
+        else:
+            return JSONResponse(status_code=404, content={"error": "Car not found"})
+
+#update price only (PUT)
+@app.put("/cars/{vin}/{price}")
+@limiter.limit("50/minute")
+async def update_car_price(request: Request, vin: str, price: float, verified: bool = Depends(isAuthenticated)):
+    if not verified:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+    elif not restapi_helpers.update_price_in_db(vin, price):
+        return JSONResponse(status_code=404, content={"error": "Car not found"})
+    else:
+        return JSONResponse(status_code=200, content={"message": "Car price updated successfully"})
+
+#update (PUT)
+@app.put("/cars/{vin}", response_model=restapi_helpers.Car)
+@limiter.limit("50/minute")
+async def update_car(request: Request, vin: str, car: restapi_helpers.Car, verified: bool = Depends(isAuthenticated)):
+    if not verified:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+    elif not restapi_helpers.update_car_in_db(vin, car):
+        return JSONResponse(status_code=404, content={"error": "Car not found"})
+    else:
+        return JSONResponse(status_code=200, content={"message": "Car updated successfully"})
+    
+#delete
+@app.delete("/cars/{vin}")
+@limiter.limit("50/minute")
+async def sold_car(request: Request, vin: str, verified: bool = Depends(isAuthenticated)):
+    if not verified:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
+    elif not restapi_helpers.delete_car_from_db(vin):
+        return JSONResponse(status_code=404, content={"error": "Car not found"})
+    else:
+        return JSONResponse(status_code=200, content={"message": "Car sold successfully"})
+    
 @app.get("/")
 def home(request: Request):
     return templates.TemplateResponse(request, "index.html")
