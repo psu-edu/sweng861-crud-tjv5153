@@ -68,7 +68,7 @@ def check_car_exists(car_id: str):
     return cursor.fetchone() is not None
 
 def update_price_in_db(car_id: str, price: float):
-    if check_car_exists(car.vin):
+    if check_car_exists(car_id):
         try:
             cursor.execute('''
             UPDATE cars
@@ -83,8 +83,8 @@ def update_price_in_db(car_id: str, price: float):
     else:
         return False
 
-def update_car_in_db(car: Car):
-    if check_car_exists(car.vin):
+def update_car_in_db(vin: str, car: Car):
+    if check_car_exists(vin):
         try:
             cursor.execute('''
             UPDATE cars
