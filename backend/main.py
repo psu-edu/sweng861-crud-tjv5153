@@ -10,6 +10,9 @@ import jwt
 from okta_jwt.jwt import validate_token
 from okta_jwt_verifier import BaseJWTVerifier
 import os
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 import sqlite3
 import thirdPartyApi
 import restapi_helpers
@@ -38,7 +41,11 @@ try:
 except sqlite3.Error as e:
     print(f"Users Database connection failed: {e}")
 
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 templates = Jinja2Templates(directory="../frontend/templates")
 
@@ -182,7 +189,7 @@ async def authCallback(response: HTMLResponse, code:str, state:str):
 @app.get("/health")
 async def read_health():
     return {"status": "ok"}
-    
+
 @app.get("/api/hello")
 async def protected_hello(request: Request, verified: bool = Depends(isAuthenticated)):
     return {"message": f"Hello, {request.state.user}. Email: {request.state.email}. This is the protected hello api endpoint."}
@@ -223,7 +230,7 @@ async def get_favicon():
     return FileResponse("../frontend/templates/favicon.ico")
 
 #create (POST)
-@app.post("/cars/", response_model=restapi_helpers.Car)
+@app.post("/cars/", response_model=restapi_helpers.Car, dependencies=[Depends(limiter.limit("20/minute"))])
 async def add_car(car: restapi_helpers.Car, verified: bool = Depends(isAuthenticated)):
     if not verified:
         return JSONResponse(status_code=401, content={"error": "Unauthorized"})
@@ -233,7 +240,7 @@ async def add_car(car: restapi_helpers.Car, verified: bool = Depends(isAuthentic
         return JSONResponse(status_code=200, content={"message": "Car added successfully"})
 
 #read (GET)
-@app.get("/cars/{vin}", response_model=restapi_helpers.Car)
+@app.get("/cars/{vin}", response_model=restapi_helpers.Car, dependencies=[Depends(limiter.limit("20/minute"))])
 async def get_car(vin: str):
     car = restapi_helpers.get_car_from_db(vin)
     if car:
@@ -242,7 +249,7 @@ async def get_car(vin: str):
         return JSONResponse(status_code=404, content={"error": "Car not found"})
 
 #update price only (PUT)
-@app.put("/cars/{vin}/{price}")
+@app.put("/cars/{vin}/{price}", dependencies=[Depends(limiter.limit("20/minute"))])
 async def update_car_price(vin: str, price: float, verified: bool = Depends(isAuthenticated)):
     if not verified:
         return JSONResponse(status_code=401, content={"error": "Unauthorized"})
@@ -252,7 +259,7 @@ async def update_car_price(vin: str, price: float, verified: bool = Depends(isAu
         return JSONResponse(status_code=200, content={"message": "Car price updated successfully"})
 
 #update (PUT)
-@app.put("/cars/{vin}", response_model=restapi_helpers.Car)
+@app.put("/cars/{vin}", response_model=restapi_helpers.Car, dependencies=[Depends(limiter.limit("20/minute"))])
 async def update_car(vin: str, car: restapi_helpers.Car, verified: bool = Depends(isAuthenticated)):
     if not verified:
         return JSONResponse(status_code=401, content={"error": "Unauthorized"})
@@ -262,7 +269,7 @@ async def update_car(vin: str, car: restapi_helpers.Car, verified: bool = Depend
         return JSONResponse(status_code=200, content={"message": "Car updated successfully"})
     
 #delete
-@app.delete("/cars/{vin}")
+@app.delete("/cars/{vin}", dependencies=[Depends(limiter.limit("20/minute"))])
 async def sold_car(vin: str, verified: bool = Depends(isAuthenticated)):
     if not verified:
         return JSONResponse(status_code=401, content={"error": "Unauthorized"})
