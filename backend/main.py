@@ -244,12 +244,15 @@ async def add_car(request: Request, car: restapi_helpers.Car, verified: bool = D
 #read (GET)
 @app.get("/cars/{vin}", response_model=restapi_helpers.Car)
 @limiter.limit("50/minute")
-async def get_car(request: Request, vin: str):
-    car = restapi_helpers.get_car_from_db(vin)
-    if car:
-        return car
+async def get_car(request: Request, vin: str, verified: bool = Depends(isAuthenticated)):
+    if not verified:
+        return JSONResponse(status_code=401, content={"error": "Unauthorized"})
     else:
-        return JSONResponse(status_code=404, content={"error": "Car not found"})
+        car = restapi_helpers.get_car_from_db(vin)
+        if car:
+            return car
+        else:
+            return JSONResponse(status_code=404, content={"error": "Car not found"})
 
 #update price only (PUT)
 @app.put("/cars/{vin}/{price}")
