@@ -9,7 +9,7 @@ DEALERSHIP_DB_PATH = os.getenv("DEALERSHIP_DB")
 
 try:
     conn = sqlite3.connect(DEALERSHIP_DB_PATH)
-    print("\nDealership Database connection successful")
+    print("Dealership Database connection successful")
     cursor = conn.cursor()
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS cars (
@@ -42,9 +42,10 @@ def add_car_to_db(car: Car):
         VALUES (?, ?, ?, ?, ?, ?, ?)''',
         (car.vin, car.make, car.model, car.year, car.color, car.price, car.mileage))
         conn.commit()
-        return True
     except sqlite3.IntegrityError:
         return False
+    
+    return True
     
 def get_car_from_db(car_id: str):
     cursor.execute('SELECT * FROM cars WHERE vin = ?', (car_id,))
@@ -59,18 +60,48 @@ def get_car_from_db(car_id: str):
             price=row[5],
             mileage=row[6]
         )
-    return None
+    else:
+        return None
 
-def update_price_in_db(car_id: str, car: Car):
-    cursor.execute('''
-    UPDATE cars
-    SET price = ?
-    WHERE vin = ?''',
-    (car.price, car_id))
-    conn.commit()
-    return cursor.rowcount > 0
+def update_price_in_db(car_id: str, price: float):
+    try:
+        cursor.execute('''
+        UPDATE cars
+        SET price = ?
+        WHERE vin = ?''',
+        (price, car_id))
+        conn.commit()
+    except sqlite3.Error:
+        return False
+    
+    return True
 
 def delete_car_from_db(car_id: str):
-    cursor.execute('DELETE FROM cars WHERE vin = ?', (car_id,))
-    conn.commit()
-    return cursor.rowcount > 0
+    try:
+        cursor.execute('DELETE FROM cars WHERE vin = ?', (car_id,))
+        conn.commit()
+    except sqlite3.Error:
+        return False
+    
+    return True
+
+def print_all_cars():
+    try:
+        cursor.execute('SELECT * FROM cars')
+        rows = cursor.fetchall()
+        for row in rows:
+            print(f"VIN: {row[0]}, Make: {row[1]}, Model: {row[2]}, Year: {row[3]}, Color: {row[4]}, Price: {row[5]}, Mileage: {row[6]}")
+    except sqlite3.Error as e:
+        print(f"Failed to retrieve cars: {e}")
+
+def clear_cars_table():
+    try:
+        cursor.execute('DELETE FROM cars')
+        conn.commit()
+        print("Cars table cleared")
+    except sqlite3.Error as e:
+        print(f"Failed to clear cars table: {e}")
+
+#clear_cars_table()
+print_all_cars()
+

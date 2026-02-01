@@ -51,22 +51,40 @@ token_url = metadata["token_endpoint"]
 #create (POST)
 @app.post("/cars/", response_model=restapi_helpers.Car)
 async def add_car(car: restapi_helpers.Car):
-    pass
+    if not restapi_helpers.add_car_to_db(car):
+        return JSONResponse(status_code=500, content={"error": "Failed to add car"})
+    else:
+        return JSONResponse(status_code=200, content={"message": "Car added successfully"})
 
 #read (GET)
-@app.get("/cars/{car_id}", response_model=restapi_helpers.Car)
-async def get_car(car_id: str):
-    pass
+@app.get("/cars/{vin}", response_model=restapi_helpers.Car)
+async def get_car(vin: str):
+    car = restapi_helpers.get_car_from_db(vin)
+    if car:
+        return car
+    else:
+        return JSONResponse(status_code=404, content={"error": "Car not found"})
+
+#update price only (PUT)
+@app.put("/cars/{vin}/{price}")
+async def update_car_price(vin: str, price: float):
+    if not restapi_helpers.update_price_in_db(vin, price):
+        return JSONResponse(status_code=404, content={"error": "Car not found"})
+    else:
+        return JSONResponse(status_code=200, content={"message": "Car price updated successfully"})
 
 #update (PUT)
-@app.put("/cars/{car_id}", response_model=restapi_helpers.Car)
-async def update_car(car_id: str, car: restapi_helpers.Car):
+@app.put("/cars/{vin}", response_model=restapi_helpers.Car)
+async def update_car_price(vin: str, car: restapi_helpers.Car):
     pass
-
+    
 #delete
-@app.delete("/cars/{car_id}")
-async def sold_car(car_id: str):
-    pass
+@app.delete("/cars/{vin}")
+async def sold_car(vin: str):
+    if not restapi_helpers.delete_car_from_db(vin):
+        return JSONResponse(status_code=404, content={"error": "Car not found"})
+    else:
+        return JSONResponse(status_code=200, content={"message": "Car sold successfully"})
 
 
 @app.get("/health")
