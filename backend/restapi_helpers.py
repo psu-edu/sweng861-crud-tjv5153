@@ -68,17 +68,20 @@ def check_car_exists(car_id: str):
     return cursor.fetchone() is not None
 
 def update_price_in_db(car_id: str, price: float):
-    try:
-        cursor.execute('''
-        UPDATE cars
-        SET price = ?
-        WHERE vin = ?''',
-        (price, car_id))
-        conn.commit()
-    except sqlite3.Error:
+    if check_car_exists(car.vin):
+        try:
+            cursor.execute('''
+            UPDATE cars
+            SET price = ?
+            WHERE vin = ?''',
+            (price, car_id))
+            conn.commit()
+        except sqlite3.Error:
+            return False
+        
+        return True
+    else:
         return False
-    
-    return True
 
 def update_car_in_db(car: Car):
     if check_car_exists(car.vin):

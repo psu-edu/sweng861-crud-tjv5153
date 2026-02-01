@@ -4,7 +4,7 @@ from urllib import request
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, status, Depends
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse, JSONResponse
 import httpx
 import jwt
 from okta_jwt.jwt import validate_token
@@ -262,6 +262,10 @@ async def cat_facts(numFacts: int):
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"status": "Failed to store Cat Facts API data"})
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def get_favicon():
+    return FileResponse("../frontend/templates/favicon.ico")
 
 @app.get("/")
 def home(request: Request):
