@@ -75,8 +75,11 @@ async def update_car_price(vin: str, price: float):
 
 #update (PUT)
 @app.put("/cars/{vin}", response_model=restapi_helpers.Car)
-async def update_car_price(vin: str, car: restapi_helpers.Car):
-    pass
+async def update_car(vin: str, car: restapi_helpers.Car):
+    if not restapi_helpers.update_car_in_db(vin, car):
+        return JSONResponse(status_code=404, content={"error": "Car not found"})
+    else:
+        return JSONResponse(status_code=200, content={"message": "Car updated successfully"})
     
 #delete
 @app.delete("/cars/{vin}")

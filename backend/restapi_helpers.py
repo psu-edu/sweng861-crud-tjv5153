@@ -62,6 +62,10 @@ def get_car_from_db(car_id: str):
         )
     else:
         return None
+    
+def check_car_exists(car_id: str):
+    cursor.execute('SELECT 1 FROM cars WHERE vin = ?', (car_id,))
+    return cursor.fetchone() is not None
 
 def update_price_in_db(car_id: str, price: float):
     try:
@@ -76,14 +80,33 @@ def update_price_in_db(car_id: str, price: float):
     
     return True
 
-def delete_car_from_db(car_id: str):
-    try:
-        cursor.execute('DELETE FROM cars WHERE vin = ?', (car_id,))
-        conn.commit()
-    except sqlite3.Error:
+def update_car_in_db(car: Car):
+    if check_car_exists(car.vin):
+        try:
+            cursor.execute('''
+            UPDATE cars
+            SET make = ?, model = ?, year = ?, color = ?, price = ?, mileage = ?
+            WHERE vin = ?''',
+            (car.make, car.model, car.year, car.color, car.price, car.mileage, car.vin))
+            conn.commit()
+        except sqlite3.Error:
+            return False
+        
+        return True
+    else:
         return False
-    
-    return True
+
+def delete_car_from_db(car_id: str):
+    if check_car_exists(car_id):
+        try:
+            cursor.execute('DELETE FROM cars WHERE vin = ?', (car_id,))
+            conn.commit()
+        except sqlite3.Error:
+            return False
+        
+        return True
+    else:
+        return False
 
 def print_all_cars():
     try:
