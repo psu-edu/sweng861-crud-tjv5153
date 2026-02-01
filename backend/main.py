@@ -231,8 +231,9 @@ async def get_favicon():
     return FileResponse("../frontend/templates/favicon.ico")
 
 #create (POST)
-@app.post("/cars/", response_model=restapi_helpers.Car, dependencies=[Depends(limiter.limit("20/minute"))])
-async def add_car(car: restapi_helpers.Car, verified: bool = Depends(isAuthenticated)):
+@app.post("/cars/", response_model=restapi_helpers.Car)
+@limiter.limit("50/minute")
+async def add_car(request: Request, car: restapi_helpers.Car, verified: bool = Depends(isAuthenticated)):
     if not verified:
         return JSONResponse(status_code=401, content={"error": "Unauthorized"})
     elif not restapi_helpers.add_car_to_db(car):
@@ -241,8 +242,9 @@ async def add_car(car: restapi_helpers.Car, verified: bool = Depends(isAuthentic
         return JSONResponse(status_code=200, content={"message": "Car added successfully"})
 
 #read (GET)
-@app.get("/cars/{vin}", response_model=restapi_helpers.Car, dependencies=[Depends(limiter.limit("20/minute"))])
-async def get_car(vin: str):
+@app.get("/cars/{vin}", response_model=restapi_helpers.Car)
+@limiter.limit("50/minute")
+async def get_car(request: Request, vin: str):
     car = restapi_helpers.get_car_from_db(vin)
     if car:
         return car
@@ -250,8 +252,9 @@ async def get_car(vin: str):
         return JSONResponse(status_code=404, content={"error": "Car not found"})
 
 #update price only (PUT)
-@app.put("/cars/{vin}/{price}", dependencies=[Depends(limiter.limit("20/minute"))])
-async def update_car_price(vin: str, price: float, verified: bool = Depends(isAuthenticated)):
+@app.put("/cars/{vin}/{price}")
+@limiter.limit("50/minute")
+async def update_car_price(request: Request, vin: str, price: float, verified: bool = Depends(isAuthenticated)):
     if not verified:
         return JSONResponse(status_code=401, content={"error": "Unauthorized"})
     elif not restapi_helpers.update_price_in_db(vin, price):
@@ -260,8 +263,9 @@ async def update_car_price(vin: str, price: float, verified: bool = Depends(isAu
         return JSONResponse(status_code=200, content={"message": "Car price updated successfully"})
 
 #update (PUT)
-@app.put("/cars/{vin}", response_model=restapi_helpers.Car, dependencies=[Depends(limiter.limit("20/minute"))])
-async def update_car(vin: str, car: restapi_helpers.Car, verified: bool = Depends(isAuthenticated)):
+@app.put("/cars/{vin}", response_model=restapi_helpers.Car)
+@limiter.limit("50/minute")
+async def update_car(request: Request, vin: str, car: restapi_helpers.Car, verified: bool = Depends(isAuthenticated)):
     if not verified:
         return JSONResponse(status_code=401, content={"error": "Unauthorized"})
     elif not restapi_helpers.update_car_in_db(vin, car):
@@ -270,8 +274,9 @@ async def update_car(vin: str, car: restapi_helpers.Car, verified: bool = Depend
         return JSONResponse(status_code=200, content={"message": "Car updated successfully"})
     
 #delete
-@app.delete("/cars/{vin}", dependencies=[Depends(limiter.limit("20/minute"))])
-async def sold_car(vin: str, verified: bool = Depends(isAuthenticated)):
+@app.delete("/cars/{vin}")
+@limiter.limit("50/minute")
+async def sold_car(request: Request, vin: str, verified: bool = Depends(isAuthenticated)):
     if not verified:
         return JSONResponse(status_code=401, content={"error": "Unauthorized"})
     elif not restapi_helpers.delete_car_from_db(vin):
