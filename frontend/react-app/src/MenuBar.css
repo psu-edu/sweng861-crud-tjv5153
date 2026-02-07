@@ -31,7 +31,7 @@
 }
 
 .menu-links li a {
-  color: white;
+  color: rgb(255, 255, 255);
   text-decoration: none;
   padding: 5px 10px;
   transition: background-color 0.3s;
@@ -40,4 +40,10 @@
 .menu-links li a:hover {
   background-color: #555;
   border-radius: 4px;
+}
+
+.nav-user-status {
+  margin-left: auto; 
+  font-weight: bold;
+  color: #04aa8e;
 }

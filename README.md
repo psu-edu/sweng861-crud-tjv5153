@@ -36,7 +36,7 @@ The secured endpoint is /api/hello. RequireAuth is a feature in JavaScript that 
 `uvicorn main:app --reload --ssl-certfile ../cert.pem --ssl-keyfile ../key.pem`  
 Backend runs on port 8000
 
-**Running Frontend**
+**Running Frontend**  
 `cd frontend/react-app`  
 `npm run dev`  
 Frontend runs on port 5173

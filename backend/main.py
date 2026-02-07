@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request, status, Depends
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import jwt
 from okta_jwt.jwt import validate_token
@@ -35,8 +36,8 @@ try:
         username TEXT,
         email TEXT,
         lastAccessTime INTEGER,
-        createdTime INTEGER
-        role TEXT DEFAULT 'user'
+        createdTime INTEGER,
+        role TEXT
     )''')
     conn.commit()
 except sqlite3.Error as e:
@@ -45,6 +46,20 @@ except sqlite3.Error as e:
 limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI()
+
+origins = [
+    "http://localhost:5173",
+
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
+
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -198,7 +213,11 @@ async def protected_hello(request: Request, verified: bool = Depends(isAuthentic
 @app.get("/signin")
 async def signin():
     redirect_uri = f"{authorization_url}?client_id={OKTA_CLIENT_ID}&response_type=code&scope=openid&redirect_uri={BACKEND_URL}/authorization-code/callback&state=login"
-    return RedirectResponse(url=redirect_uri)
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={"redirect_uri": redirect_uri})
+    # this does not work with frontend because Okta blocks all CORS requests to the authorization endpoint, so we have to return the redirect URI to the frontend and let it handle the redirection
+    #return RedirectResponse(url=redirect_uri)
 
 @app.get("/catFacts")
 async def cat_facts():
@@ -313,3 +332,14 @@ class User():
         #update last access time on each login
         cursor.execute("UPDATE users SET lastAccessTime = ? WHERE id = ?", (self.lastAccessTime, self.id))
         conn.commit()
+
+def print_all_users_database():
+    try:
+        cursor.execute('SELECT * FROM users')
+        rows = cursor.fetchall()
+        for row in rows:
+            print(f"ID: {row[0]}, Username: {row[1]}, Email: {row[2]}, Last Access Time: {row[3]}, Created Time: {row[4]}, Role: {row[5]}")
+    except sqlite3.Error as e:
+        print(f"Failed to retrieve users: {e}")
+
+print_all_users_database()
