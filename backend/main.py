@@ -24,6 +24,7 @@ OKTA_URL = os.getenv("OKTA_URL")
 OKTA_CLIENT_ID = os.getenv("OKTA_CLIENT_ID")
 OKTA_CLIENT_SECRET = os.getenv("OKTA_CLIENT_SECRET")
 BACKEND_URL = os.getenv("BACKEND_URL")
+FRONTEND_URL = os.getenv("FRONTEND_URL")
 DB_PATH = os.getenv("DB")
 
 try:
@@ -199,8 +200,10 @@ async def authCallback(response: HTMLResponse, code:str, state:str):
             samesite="lax",
             max_age=3600
         )
-
-    return {"status": "authenticated"}
+    print("User authenticated and session cookie set")
+    return RedirectResponse(
+        url=f"{FRONTEND_URL}/cars")
+    #return {"status": "authenticated"}
 
 @app.get("/health")
 async def read_health():
@@ -305,7 +308,11 @@ async def sold_car(request: Request, vin: str, verified: bool = Depends(isAuthen
         return JSONResponse(status_code=404, content={"error": "Car not found"})
     else:
         return JSONResponse(status_code=200, content={"message": "Car sold successfully"})
-    
+
+@app.get("/userinfo")
+async def user_info(request: Request):
+    return {"status": "ok"}
+
 @app.get("/")
 def home(request: Request):
     return templates.TemplateResponse(request, "index.html")

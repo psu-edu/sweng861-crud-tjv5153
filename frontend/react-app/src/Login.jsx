@@ -1,17 +1,14 @@
-import React from 'react';
+import React , {useState} from 'react';
 import './Login.css';
+import ApiClientFetch from './ApiClient.jsx';
+import ApiClientGetUserInfo from './ApiClient.jsx';
 
 async function handleLogin() {
     alert('Redirecting to Okta login...');
     try 
     {
         const response = await fetch('http://localhost:8000/signin', {
-            method: 'GET',
-            redirect: 'follow',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        }); 
+            method: 'GET',}); 
         if (response.ok) 
         {
             const data = await response.json();

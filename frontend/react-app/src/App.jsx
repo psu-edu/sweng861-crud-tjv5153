@@ -5,6 +5,7 @@ import { Route, Routes } from 'react-router-dom';
 import Login from './Login';
 import Cars from './Cars';
 import CatFacts from './CatFacts';
+import { ApiClientGetUserInfo } from './apiClient';
 
 
 function Greeting() {
